@@ -26,6 +26,8 @@ ap.add_argument("-p", "--shape-predictor", required=True,
 	help="path to facial landmark predictor")
 ap.add_argument("-i", "--image", required=True,
 	help="path to input image")
+ap.add_argument("-t", "--threshold", required=False,
+	help="Threshold number")
 args = vars(ap.parse_args())
 
 
@@ -61,29 +63,74 @@ def visualize_facial_landmarks(image, shape, colors=None, alpha=0.75):
         # face landmark
         (j, k) = FACIAL_LANDMARKS_INDEXES[name]
         pts = shape[j:k]
+        # if name == 'Left_Eye':
+        # if name == 'Nose':
+        #     width = int(src.shape[1] * scale_percent / 100)
+        #     height = int(src.shape[0] * scale_percent / 100)
+
         facial_features_cordinates[name] = pts
 
         # check if are supposed to draw the jawline
-        if name == "Jaw":
-            # since the jawline is a non-enclosed facial region,
-            # just draw lines between the (x, y)-coordinates
-            for l in range(1, len(pts)):
-                ptA = tuple(pts[l - 1])
-                ptB = tuple(pts[l])
-                cv2.line(overlay, ptA, ptB, colors[i], 2)
+        # if name == "Jaw":
+        #     # since the jawline is a non-enclosed facial region,
+        #     # just draw lines between the (x, y)-coordinates
+        #     for l in range(1, len(pts)):
+        #         ptA = tuple(pts[l - 1])
+        #         ptB = tuple(pts[l])
+        #         cv2.line(overlay, ptA, ptB, colors[i], 2)
 
         # otherwise, compute the convex hull of the facial
         # landmark coordinates points and display it
-        else:
-            hull = cv2.convexHull(pts)
-            cv2.drawContours(overlay, [hull], -1, colors[i], -1)
+        # else:
+        #     hull = cv2.convexHull(pts)
+        #     cv2.drawContours(overlay, [hull], -1, colors[i], -1)
+        if name != "Jaw" and name == "Left_Eye" or name == "Nose":
+            minX = min(pts[:,0])
+            maxX = max(pts[:,0])
+            minY = min(pts[:,1])
+            maxY = max(pts[:,1]) 
 
+            rect = []
+            rect.append([minX, minY])
+            rect.append([minX, maxY])
+            rect.append([maxX, minY])
+            rect.append([maxX, maxY])
+            rect = np.array(rect)
+
+            hull = cv2.convexHull(rect)
+            # print(hull)
+            # output = cv2.resize(overlay, dsize)
+            # print(overlay[minX:maxX,minY:maxX,:])
+            tmp = overlay[minY:maxY, minX:maxX, :]
+            print(tmp.shape)
+            s = 2
+
+            Affine_Mat_w = [s, 0, tmp.shape[0]/2.0 - s*tmp.shape[0]/2.0]
+            Affine_Mat_h = [0, s, tmp.shape[1]/2.0 - s*tmp.shape[1]/2.0]
+
+
+            M = np.c_[ Affine_Mat_w, Affine_Mat_h].T 
+
+            tmp = cv2.warpAffine(tmp, M, (tmp.shape[1], tmp.shape[0]))
+
+            # width = int(tmp.shape[1] * s / 100)
+            # height = int(tmp.shape[0] * s / 100)
+            # dim = (width, height)
+
+            # resized = cv2.resize(tmp, (width, height), interpolation = cv2.INTER_CUBIC)
+            # tmp = cv2.resize(resized, (tmp.shape[1], tmp.shape[0]), interpolation = cv2.INTER_CUBIC)
+
+            # print(tmp.shape)
+   
+            
+            overlay[minY:maxY, minX:maxX, :] = tmp
+            # cv2.drawContours(overlay, [hull], -1, colors[i], -1)
     # apply the transparent overlay
-    cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, output)
+    # cv2.addWeighted(overlay, alpha, output, 1 - alpha, 0, output)
 
     # return the output image
-    print(facial_features_cordinates)
-    return output
+    # print(facial_features_cordinates)
+    return overlay
 
 # initialize dlib's face detector (HOG-based) and then create
 # the facial landmark predictor
@@ -106,5 +153,6 @@ for (i, rect) in enumerate(rects):
     shape = shape_to_numpy_array(shape)
 
     output = visualize_facial_landmarks(image, shape)
+    print(output.shape)
     cv2.imshow("Image", output)
     cv2.waitKey(0)
